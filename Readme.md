@@ -20,8 +20,8 @@ Follow these steps to set up and run the project on your local machine:
 
 1. Clone the repository:
    ```
-   git clone https://github.com/U-C4N/github-repo-viewer.git
-   cd github-repo-viewer
+   git clone https://github.com/U-C4N/GithubtoLLM.git
+   cd GithubtoLLM
    ```
 
 2. Install the required packages:
