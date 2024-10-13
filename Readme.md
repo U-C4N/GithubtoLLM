@@ -2,6 +2,8 @@
 
 GitHub Repository Viewer is a web application built with **React** and **TypeScript** that allows users to view and explore the contents of GitHub repositories. This application utilizes the GitHub API to fetch and display repository data in a user-friendly format.
 
+![MarkdowntoLLM](/Animation.gif)
+
 ## Features
 
 - Fetch and display repository content using GitHub API
