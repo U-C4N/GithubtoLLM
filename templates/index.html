@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Repository Viewer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>GitHub Repository Viewer</h1>
+
+        <div class="input-container">
+            <input type="text" id="repoUrl" placeholder="Enter GitHub repository URL" 
+                   class="repo-input">
+            <button onclick="cloneRepository()" class="clone-button">Clone Repository</button>
+        </div>
+
+        <div class="output-container">
+            <div class="textarea-header">
+                <button onclick="copyMarkdown()" class="copy-button">Copy Markdown</button>
+            </div>
+            <textarea id="markdownOutput" readonly></textarea>
+            <div class="token-counter">
+                <div class="total-tokens">
+                    <span>Total Tokens: </span>
+                    <span id="tokenCount">0</span>
+                </div>
+                <div class="model-prices">
+                    <div class="token-count-item" data-price="0.015">
+                        <span class="token-count-label">o1 Input:</span>
+                        <span id="o1InputCost" class="token-cost">$0.00</span>
+                    </div>
+                    <div class="token-count-item" data-price="0.003">
+                        <span class="token-count-label">o1-mini Input:</span>
+                        <span id="o1MiniInputCost" class="token-cost">$0.00</span>
+                    </div>
+                    <div class="token-count-item" data-price="0.003">
+                        <span class="token-count-label">Claude 3.5 Sonnet:</span>
+                        <span id="claudeInputCost" class="token-cost">$0.00</span>
+                    </div>
+                    <div class="token-count-item" data-price="0.0025">
+                        <span class="token-count-label">GPT-4o Input:</span>
+                        <span id="gpt4oInputCost" class="token-cost">$0.00</span>
+                    </div>
+                    <div class="token-count-item" data-price="0.00125">
+                        <span class="token-count-label">Gemini 1.5 Pro:</span>
+                        <span id="geminiProInputCost" class="token-cost">$0.00</span>
+                    </div>
+                    <div class="token-count-item" data-price="0.000075">
+                        <span class="token-count-label">Gemini 1.5 Flash:</span>
+                        <span id="geminiFlashInputCost" class="token-cost">$0.00</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="error" class="error"></div>
+    </div>
+
+    <script>
+            function updatePriceColors() {
+                const items = document.querySelectorAll('.token-count-item');
+                const prices = Array.from(items).map(item => parseFloat(item.dataset.price));
+                const maxPrice = Math.max(...prices);
+                const minPrice = Math.min(...prices);
+
+                items.forEach(item => {
+                    const price = parseFloat(item.dataset.price);
+                    const cost = item.querySelector('.token-cost');
+
+                    if (price === maxPrice) {
+                        cost.classList.add('most-expensive');
+                    } else if (price === minPrice) {
+                        cost.classList.add('least-expensive');
+                    } else {
+                        cost.classList.add('medium-price');
+                    }
+                });
+            }
+
+            function countTokens(text) {
+                if (!text) return 0;
+                const lines = text.split('\n');
+                let tokenCount = 0;
+
+                lines.forEach(line => {
+                    line = line.replace(/^#+\s+/, '');
+                    if (line.trim().startsWith('```')) {
+                        tokenCount += 1;
+                    } else {
+                        const lineTokens = line.trim()
+                            .split(/[\s\n\r\t]+/)
+                            .filter(token => token.length > 0)
+                            .map(token => {
+                                return token.replace(/^[.,!?;:'"\/\\+=\-*&^%$#@]+|[.,!?;:'"\/\\+=\-*&^%$#@]+$/g, '');
+                            })
+                            .filter(token => token.length > 0);
+
+                        lineTokens.forEach(token => {
+                            if (token.includes('/')) {
+                                tokenCount += token.split('/').filter(t => t.length > 0).length;
+                            } else {
+                                tokenCount += 1;
+                            }
+                        });
+                    }
+                });
+
+                return tokenCount;
+            }
+
+            function calculateCosts(tokenCount) {
+                // o1 pricing ($15.00 per 1M tokens = $0.015 per 1K tokens)
+                const o1InputPrice = 0.015;
+                const o1InputCost = ((tokenCount * o1InputPrice) / 1000).toFixed(4);
+
+                // o1-mini pricing ($3.00 per 1M tokens = $0.003 per 1K tokens)
+                const o1MiniInputPrice = 0.003;
+                const o1MiniInputCost = ((tokenCount * o1MiniInputPrice) / 1000).toFixed(4);
+
+                // Claude 3.5 Sonnet pricing ($3.00 per 1M tokens = $0.003 per 1K tokens)
+                const claudeInputPrice = 0.003;
+                const claudeInputCost = ((tokenCount * claudeInputPrice) / 1000).toFixed(4);
+
+                // GPT-4o pricing ($2.50 per 1M tokens = $0.0025 per 1K tokens)
+                const gpt4oInputPrice = 0.0025;
+                const gpt4oInputCost = ((tokenCount * gpt4oInputPrice) / 1000).toFixed(4);
+
+                // Gemini 1.5 Pro pricing ($1.25 per 1M tokens = $0.00125 per 1K tokens)
+                const geminiProInputPrice = 0.00125;
+                const geminiProInputCost = ((tokenCount * geminiProInputPrice) / 1000).toFixed(4);
+
+                // Gemini 1.5 Flash pricing ($0.075 per 1M tokens = $0.000075 per 1K tokens)
+                const geminiFlashInputPrice = 0.000075;
+                const geminiFlashInputCost = ((tokenCount * geminiFlashInputPrice) / 1000).toFixed(4);
+
+                return {
+                    o1Input: o1InputCost,
+                    o1MiniInput: o1MiniInputCost,
+                    claudeInput: claudeInputCost,
+                    gpt4oInput: gpt4oInputCost,
+                    geminiProInput: geminiProInputCost,
+                    geminiFlashInput: geminiFlashInputCost
+                };
+            }
+
+            function updateTokenCount(text) {
+                const count = countTokens(text);
+                const costs = calculateCosts(count);
+
+                document.getElementById('tokenCount').textContent = count.toLocaleString();
+                document.getElementById('o1InputCost').textContent = `$${costs.o1Input}`;
+                document.getElementById('o1MiniInputCost').textContent = `$${costs.o1MiniInput}`;
+                document.getElementById('claudeInputCost').textContent = `$${costs.claudeInput}`;
+                document.getElementById('gpt4oInputCost').textContent = `$${costs.gpt4oInput}`;
+                document.getElementById('geminiProInputCost').textContent = `$${costs.geminiProInput}`;
+                document.getElementById('geminiFlashInputCost').textContent = `$${costs.geminiFlashInput}`;
+
+                updatePriceColors();
+            }
+
+            function copyMarkdown() {
+                const textarea = document.getElementById('markdownOutput');
+                textarea.select();
+                document.execCommand('copy');
+
+                const copyButton = document.querySelector('.copy-button');
+                const originalText = copyButton.textContent;
+                copyButton.textContent = 'Copied!';
+                setTimeout(() => {
+                    copyButton.textContent = originalText;
+                }, 2000);
+            }
+
+            function showError(message) {
+                const errorDiv = document.getElementById('error');
+                errorDiv.textContent = message;
+                errorDiv.classList.add('visible');
+            }
+
+            function hideError() {
+                const errorDiv = document.getElementById('error');
+                errorDiv.textContent = '';
+                errorDiv.classList.remove('visible');
+            }
+
+            async function cloneRepository() {
+                const repoUrl = document.getElementById('repoUrl').value;
+                const outputArea = document.getElementById('markdownOutput');
+                hideError();
+
+                outputArea.value = 'Cloning repository...';
+
+                try {
+                    const response = await fetch('/clone', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: `repo_url=${encodeURIComponent(repoUrl)}`
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        outputArea.value = data.markdown;
+                        updateTokenCount(data.markdown);
+                    } else {
+                        showError(data.error || 'An error occurred');
+                        outputArea.value = '';
+                        updateTokenCount('');
+                    }
+                } catch (error) {
+                    showError('Failed to connect to server');
+                    outputArea.value = '';
+                    updateTokenCount('');
+                }
+            }
+
+            // Initialize price colors on page load
+            updatePriceColors();
+    </script>
+</body>
+</html>
